@@ -4,6 +4,4 @@ version = "0.1.0"
 authors = ["Amos Wenger <amoswenger@gmail.com>"]
 
 [dependencies]
-hyper = "0.12"
-hyper-tls = "0.3.1"
-tokio = "0.1.11"
+reqwest = "0.9.4"

@@ -1,41 +1,24 @@
-extern crate hyper;
-extern crate hyper_tls;
-extern crate tokio;
+extern crate reqwest;
 
-use hyper::rt::{self, Future, Stream};
-use hyper::Client;
-use hyper_tls::HttpsConnector;
-use std::io::{self, Write};
-
-fn main() {
-    println!("Hello, world!");
-
+fn main() -> Result<(), reqwest::Error> {
     // let url = "https://itch.io/country";
-    let url = "http://neverssl.com/";
-    let uri: hyper::Uri = url.parse().unwrap();
+    // let url = "http://neverssl.com/";
+    let url = "http://slowwly.robertomurray.co.uk/delay/1000/url/https://itch.io/country";
 
-    rt::run(fetch_url(uri));
-}
+    let client = reqwest::Client::new();
+    let req = client.get(url);
+    println!("Called get()...");
 
-fn fetch_url(uri: hyper::Uri) -> impl Future<Item = (), Error = ()> {
-    let https = HttpsConnector::new(4).expect("TLS initialization failed");
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let mut res = req.send()?;
 
-    client
-        .get(uri)
-        .and_then(|res| {
-            println!("Response: {}", res.status());
-            println!("Headers: {:#?}", res.headers());
+    println!("Called send...");
+    if let Some(loc) = res.headers().get("content-type") {
+        if let Ok(loc) = loc.to_str() {
+            println!("Location: {}", loc);
+        }
+    }
 
-            let body = res.into_body();
-            body.for_each(|chunk| {
-                io::stdout()
-                    .write_all(&chunk)
-                    .map_err(|e| panic!("example expects stdout is open, error{}", e))
-            })
-        }).map(|_| {
-            println!("\n\nDone.");
-        }).map_err(|err| {
-            eprintln!("\n\nError {}", err);
-        })
+    println!("Parsing as text...");
+    println!("{}", res.text()?);
+    Ok(())
 }
