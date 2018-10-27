@@ -3,5 +3,9 @@ name = "chill-rs"
 version = "0.1.0"
 authors = ["Amos Wenger <amoswenger@gmail.com>"]
 
+[lib]
+name = "chill"
+path = "src/lib.rs"
+
 [dependencies]
 reqwest = "0.9.4"
