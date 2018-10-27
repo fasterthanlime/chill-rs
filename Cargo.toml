@@ -9,3 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 reqwest = "0.9.4"
+rb = "0.3.2"

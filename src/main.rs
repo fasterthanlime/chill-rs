@@ -1,12 +1,34 @@
 extern crate chill;
+extern crate rb;
 extern crate reqwest;
 
-use chill::{Discard, LimitReader};
+use chill::{ConsumerReader, LimitReader, ProducerWriter};
+use rb::{SpscRb, RB};
 use std::io::{copy, Read};
+use std::thread;
 
-fn main() -> Result<(), Box<std::error::Error>> {
+fn main() {
+    const RB_SIZE: usize = 128 * 1024;
+    let rb = SpscRb::<u8>::new(RB_SIZE);
+    let (prod, cons) = (rb.producer(), rb.consumer());
+
+    let consumer_thread = thread::spawn(move || {
+        let mut reader = ConsumerReader::new(cons);
+        let mut buf: [u8; 16 * 1024] = [0; 16 * 1024];
+
+        loop {
+            reader.read(&mut buf).unwrap();
+            println!("Just read {} bytes of data", buf.len());
+        }
+    });
+
+    let http_thread = thread::spawn(|| stream(&mut ProducerWriter::new(prod)).unwrap());
+    http_thread.join().unwrap();
+    consumer_thread.join().unwrap();
+}
+
+fn stream<T: std::io::Write>(sink: &mut T) -> Result<(), Box<std::error::Error>> {
     let url = "http://jazzblackmusic.ice.infomaniak.ch/jazzblackmusic-high.mp3";
-
     let client = reqwest::Client::new();
     let req = client.get(url).header("icy-metadata", "1");
     let mut res = req.send()?;
@@ -16,16 +38,17 @@ fn main() -> Result<(), Box<std::error::Error>> {
         metaint.expect("invalid icecast stream").to_str()?.parse()?
     };
 
-    let mut sink = Discard::new();
     const META_BLOCK_SIZE: usize = 16;
 
     loop {
         {
+            println!("Reading audio...");
             let mut lr = LimitReader::new(&mut res, audio_bytes);
-            copy(&mut lr, &mut sink)?;
+            copy(&mut lr, sink)?;
         }
 
         {
+            println!("Reading metadata...");
             let mut meta_blocks_buf: [u8; 1] = [0];
             res.read(&mut meta_blocks_buf)?;
             let meta_size = meta_blocks_buf[0] as usize * META_BLOCK_SIZE;
