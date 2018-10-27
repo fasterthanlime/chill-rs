@@ -2,7 +2,7 @@ extern crate chill;
 extern crate reqwest;
 
 use chill::{Discard, LimitReader};
-use std::io::copy;
+use std::io::{copy, Read};
 use std::time::SystemTime;
 
 fn main() -> Result<(), reqwest::Error> {
@@ -30,22 +30,29 @@ fn main() -> Result<(), reqwest::Error> {
         .unwrap();
     println!("{} audio frames will have {} bytes", now(), audio_bytes);
 
-    let limit = 16 * 1024;
+    let mut sink = Discard::new();
+    const META_BLOCK_SIZE: usize = 16;
 
-    {
-        println!("{} (1) streaming {} bytes of body...", now(), limit);
-        let mut sink = Discard::new();
-        let mut lr = LimitReader::new(&mut res, limit);
-        let copied = copy(&mut lr, &mut sink).expect("error while streaming!");
-        println!("{} (1) done streaming {} bytes", now(), copied);
-    }
+    loop {
+        {
+            println!("{} reading {} bytes of audio data...", now(), audio_bytes);
+            let mut lr = LimitReader::new(&mut res, audio_bytes);
+            copy(&mut lr, &mut sink).expect("while reading block data");
+        }
 
-    {
-        println!("{} (2) streaming {} bytes of body...", now(), limit);
-        let mut sink = Discard::new();
-        let mut lr = LimitReader::new(&mut res, limit);
-        let copied = copy(&mut lr, &mut sink).expect("error while streaming!");
-        println!("{} (2) done streaming {} bytes", now(), copied);
+        {
+            println!("{} reading metadata size", now());
+            let mut meta_blocks_buf: [u8; 1] = [0];
+            res.read(&mut meta_blocks_buf)
+                .expect("while reading metadata blocks size");
+            let meta_size = meta_blocks_buf[0] as usize * META_BLOCK_SIZE;
+            println!("{} reading {} bytes of metadata", now(), meta_size);
+
+            let mut lr = LimitReader::new(&mut res, meta_size);
+            copy(&mut lr, &mut std::io::stdout()).expect("while reading audio data");
+
+            println!("\n\n=============\n\n")
+        }
     }
 
     Ok(())
