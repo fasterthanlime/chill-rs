@@ -49,6 +49,9 @@ fn decode_meta(meta: &String) {
                 let (k, v) = (parts.next().unwrap().trim(), parts.next().unwrap().trim());
                 if k == "StreamTitle" {
                     let v = v.trim_matches('\'');
+                    if v.trim().trim_matches('-').is_empty() {
+                        continue;
+                    }
                     println!("Now playing: {}", v);
                 }
             }
