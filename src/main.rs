@@ -1,25 +1,25 @@
 extern crate chill;
 extern crate rb;
 extern crate reqwest;
+extern crate rodio;
 
-use chill::{ConsumerReader, LimitReader, ProducerWriter};
+use chill::{ConsumerReader, LimitReader, Mp3Decoder, ProducerWriter};
 use rb::{SpscRb, RB};
+use rodio::source::Source;
 use std::io::{copy, Read};
 use std::thread;
 
 fn main() {
-    const RB_SIZE: usize = 128 * 1024;
+    const RB_SIZE: usize = 128 * 1024 * 1024;
     let rb = SpscRb::<u8>::new(RB_SIZE);
     let (prod, cons) = (rb.producer(), rb.consumer());
 
     let consumer_thread = thread::spawn(move || {
-        let mut reader = ConsumerReader::new(cons);
-        let mut buf: [u8; 16 * 1024] = [0; 16 * 1024];
+        let stream = ConsumerReader::new(cons);
+        let device = rodio::default_output_device().unwrap();
 
-        loop {
-            reader.read(&mut buf).unwrap();
-            println!("Just read {} bytes of data", buf.len());
-        }
+        let source = Mp3Decoder::new(stream).unwrap();
+        rodio::play_raw(&device, source.convert_samples());
     });
 
     let http_thread = thread::spawn(|| stream(&mut ProducerWriter::new(prod)).unwrap());
@@ -42,13 +42,11 @@ fn stream<T: std::io::Write>(sink: &mut T) -> Result<(), Box<std::error::Error>>
 
     loop {
         {
-            println!("Reading audio...");
             let mut lr = LimitReader::new(&mut res, audio_bytes);
             copy(&mut lr, sink)?;
         }
 
         {
-            println!("Reading metadata...");
             let mut meta_blocks_buf: [u8; 1] = [0];
             res.read(&mut meta_blocks_buf)?;
             let meta_size = meta_blocks_buf[0] as usize * META_BLOCK_SIZE;
