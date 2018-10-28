@@ -10,7 +10,7 @@ use std::io::{copy, Read};
 use std::thread;
 
 fn main() {
-    const RB_SIZE: usize = 128 * 1024 * 1024;
+    const RB_SIZE: usize = 128 * 1024;
     let rb = SpscRb::<u8>::new(RB_SIZE);
     let (prod, cons) = (rb.producer(), rb.consumer());
 
